@@ -2,7 +2,7 @@
 
 Hearthstone MCP server with card search, deck analysis, and strategy coaching. Gives LLMs access to the full Hearthstone card pool plus built-in strategy knowledge for deck building and gameplay advice.
 
-This is a **local-only fork** of `gregario/hearthstone-oracle`. It is not published to npm and carries no MCP registry / directory metadata — you build it and run it from this directory. Card data is still fetched online from HearthstoneJSON at runtime.
+Forked from `gregario/hearthstone-oracle`, published as `@xenos2104/hearthstone-oracle`. Card data is fetched online from HearthstoneJSON at runtime.
 
 ## Requirements
 

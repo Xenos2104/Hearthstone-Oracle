@@ -1,7 +1,6 @@
 {
-  "name": "hearthstone-oracle",
-  "version": "0.1.1",
-  "private": true,
+  "name": "@xenos2104/hearthstone-oracle",
+  "version": "0.2.0",
   "description": "Hearthstone MCP server with card search, deck analysis, and strategy coaching",
   "type": "module",
   "license": "MIT",
@@ -9,11 +8,30 @@
   "bin": {
     "hearthstone-oracle": "dist/server.js"
   },
+  "files": [
+    "dist/**/*.js",
+    "dist/**/*.d.ts",
+    "dist/**/*.js.map",
+    "dist/**/*.d.ts.map",
+    "dist/data/schema.sql"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Xenos2104/Hearthstone-Oracle.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Xenos2104/Hearthstone-Oracle/issues"
+  },
+  "homepage": "https://github.com/Xenos2104/Hearthstone-Oracle#readme",
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsc && node scripts/copy-assets.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
-    "start": "node dist/server.js"
+    "start": "node dist/server.js",
+    "prepublishOnly": "npm run build"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1",
