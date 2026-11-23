@@ -5,7 +5,9 @@ All notable changes to hearthstone-oracle will be documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## 0.2.0
+
+First release of the `@xenos2104/hearthstone-oracle` fork.
 
 ### Fixed
 - **`search_cards` crashed on FTS5 syntax.** User text went straight into

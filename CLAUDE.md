@@ -2,9 +2,23 @@
 
 MCP server for Hearthstone card data, strategy coaching, and deck analysis.
 
-This is a **local-only** checkout: it is not published to npm, and the registry /
-directory metadata used for distribution has been removed. Build and run it from
-this directory (`npm install && npm run build && npm start`).
+Fork of `gregario/hearthstone-oracle`, published to npm as
+`@xenos2104/hearthstone-oracle`. Repository: `Xenos2104/Hearthstone-Oracle`
+(`upstream` remote still points at the original).
+
+## Layout
+
+Project root is this directory (the `hearthstone-oracle/` subdirectory is gone).
+
+## Publishing
+
+- Registry: npm, scoped name `@xenos2104/hearthstone-oracle`, `publishConfig.access = "public"`.
+- Auth: `NPM_TOKEN` environment variable / a temp `.npmrc`; never commit credentials.
+- `npm publish` runs `prepublishOnly` → `npm run build`, so `dist/` is always fresh.
+- First publish of a new scope returns HTTP **202 Accepted**; the package appears a few
+  minutes later. Re-check with `npm view @xenos2104/hearthstone-oracle` before retrying —
+  re-publishing the same version while it is still queued fails.
+- `111.txt` in the repo root is a local secret file and is gitignored. Do not commit it.
 
 ## Architecture
 
@@ -40,7 +54,9 @@ TDD workflow: write tests first, then implement.
 
 **What we do about it.**
 - Snapshot TTL: the data pipeline refreshes from HearthstoneJSON on a TTL so we converge on the latest dbfIds.
-- Fallback message: `decode_deck` returns a clear placeholder for any dbfId not present in the local snapshot ("possibly added in a recent expansion; refresh data to resolve"), with the dbfId surfaced for lookup.
+- Fallback message: `decode_deck` renders `[Unknown card #dbfId]` in the card list and
+  reports the unresolved ids once, at the end of the output. `HEARTHSTONE_ORACLE_FORCE_REFRESH=1`
+  forces a snapshot refresh.
 - Test fixtures: seed data uses dbfIds from a recent snapshot. When fixtures drift, refresh them rather than freezing on legacy IDs.
 
 **What users should expect.** Deckstrings encoded against older Hearthstone clients may not fully decode against the current snapshot — some cards will surface as "Unknown card" with the placeholder message. That is the correct behaviour, not a bug.
