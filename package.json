@@ -1,7 +1,7 @@
 {
   "name": "hearthstone-oracle",
-  "packageManager": "npm@11.11.0",
   "version": "0.1.1",
+  "private": true,
   "description": "Hearthstone MCP server with card search, deck analysis, and strategy coaching",
   "type": "module",
   "license": "MIT",
@@ -9,19 +9,11 @@
   "bin": {
     "hearthstone-oracle": "dist/server.js"
   },
-  "files": [
-    "dist/**/*.js",
-    "dist/**/*.d.ts",
-    "dist/**/*.js.map",
-    "dist/**/*.d.ts.map",
-    "dist/data/schema.sql"
-  ],
   "scripts": {
-    "build": "tsc && cp src/data/schema.sql dist/data/schema.sql && chmod +x dist/server.js",
+    "build": "tsc && node scripts/copy-assets.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
-    "start": "node dist/server.js",
-    "prepublishOnly": "npm run build"
+    "start": "node dist/server.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1",
@@ -38,14 +30,11 @@
   "engines": {
     "node": ">=18"
   },
-  "mcpName": "io.github.gregario/hearthstone-oracle",
   "keywords": [
     "mcp",
     "hearthstone",
     "card-game",
     "strategy",
-    "deck-analysis",
-    "claude",
-    "ai"
+    "deck-analysis"
   ]
 }

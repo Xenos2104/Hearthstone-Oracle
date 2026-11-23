@@ -111,4 +111,35 @@ describe('get_card', () => {
       expect(result.suggestions).toContain('Fiery War Axe');
     }
   });
+
+  // Regression: several rows can share a name (reprints + skins). The lookup
+  // used to return whatever row SQLite happened to read first.
+  it('returns the newest collectible print when a name has several rows', () => {
+    const insert = db.prepare(`
+      INSERT INTO cards
+        (id, name, mana_cost, type, player_class, collectible, card_set, attack, health)
+      VALUES (?, ?, 2, 'MINION', 'NEUTRAL', ?, ?, ?, ?)
+    `);
+    insert.run('500001', 'Multi Print', 0, 'HERO_SKINS', 1, 1);
+    insert.run('500002', 'Multi Print', 1, 'CORE', 2, 2);
+    insert.run('500003', 'Multi Print', 1, 'CORE', 3, 3);
+
+    const result = getCard(db, { name: 'Multi Print' });
+    expect(result.found).toBe(true);
+    if (result.found) {
+      expect(result.card.id).toBe('500003');
+      expect(result.card.attack).toBe(3);
+      expect(result.card.card_set).toBe('CORE');
+    }
+  });
+
+  it('does not fuzzy-match hero skins', () => {
+    db.prepare(`
+      INSERT INTO cards (id, name, type, player_class, collectible, card_set)
+      VALUES ('500010', 'Skinny Legend', 'HERO', 'MAGE', 1, 'HERO_SKINS')
+    `).run();
+
+    const result = getCard(db, { name: 'Skinny' });
+    expect(result.found).toBe(false);
+  });
 });

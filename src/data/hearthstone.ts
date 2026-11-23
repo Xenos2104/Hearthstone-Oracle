@@ -1,5 +1,6 @@
 import type Database from 'better-sqlite3';
 import { insertCards, type CardRow } from './db.js';
+import { displaySetName } from './set-names.js';
 
 // --- Types ---
 
@@ -44,7 +45,7 @@ export function transformCard(card: HearthstoneCard): CardRow {
     mana_cost: card.cost ?? null,
     type: card.type ?? null,
     card_set: card.set ?? null,
-    set_name: null,
+    set_name: displaySetName(card.set ?? null),
     player_class: card.cardClass ?? 'NEUTRAL',
     rarity: card.rarity ?? null,
     attack: card.attack ?? null,

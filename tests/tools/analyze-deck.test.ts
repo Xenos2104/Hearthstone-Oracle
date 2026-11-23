@@ -95,6 +95,22 @@ describe('analyze_deck', () => {
     }
   });
 
+  // 3b. Self-pairings and duplicated opponents are filtered out
+  it('never lists the deck archetype itself as an opponent', () => {
+    const code = makeAggroDeckCode();
+    const result = analyzeDeck(db, { deck_code: code });
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+
+    const own = result.classification.archetype.toLowerCase();
+    const opponents = (result.matchups ?? []).map((m) =>
+      m.vs_archetype.toLowerCase(),
+    );
+
+    expect(opponents).not.toContain(own);
+    expect(new Set(opponents).size).toBe(opponents.length);
+  });
+
   // 4. Invalid deck code returns error
   it('returns error for invalid deck code', () => {
     const result = analyzeDeck(db, { deck_code: 'not-a-valid-deck!!!' });

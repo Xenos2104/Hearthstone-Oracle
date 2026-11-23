@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS cards (
   mana_cost INTEGER,
   type TEXT,                     -- MINION, SPELL, WEAPON, HERO, LOCATION
   card_set TEXT,
-  set_name TEXT,
+  set_name TEXT,                 -- Display name resolved from card_set
   player_class TEXT,             -- Class name or NEUTRAL
   rarity TEXT,                   -- FREE, COMMON, RARE, EPIC, LEGENDARY
   attack INTEGER,
@@ -46,15 +46,6 @@ CREATE TABLE IF NOT EXISTS keywords (
   name TEXT PRIMARY KEY,
   description TEXT NOT NULL,
   related_keywords TEXT           -- JSON array
-);
-
--- Card sets
-CREATE TABLE IF NOT EXISTS sets (
-  id TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
-  release_date TEXT,
-  type TEXT,
-  is_standard INTEGER DEFAULT 0
 );
 
 -- Layer 2: Strategy Knowledge
@@ -101,11 +92,14 @@ CREATE TABLE IF NOT EXISTS game_concepts (
   hearthstone_application TEXT NOT NULL
 );
 
--- Indexes
-CREATE INDEX IF NOT EXISTS idx_cards_class ON cards(player_class);
+-- Indexes. Queries compare case-insensitively (LOWER(name) / UPPER(class)),
+-- so the indexes are expression indexes — a plain column index would never
+-- be used by those predicates.
+CREATE INDEX IF NOT EXISTS idx_cards_name_lower ON cards(LOWER(name));
+CREATE INDEX IF NOT EXISTS idx_cards_class_upper ON cards(UPPER(player_class));
+CREATE INDEX IF NOT EXISTS idx_cards_type_upper ON cards(UPPER(type));
+CREATE INDEX IF NOT EXISTS idx_cards_rarity_upper ON cards(UPPER(rarity));
+CREATE INDEX IF NOT EXISTS idx_cards_set_upper ON cards(UPPER(card_set));
+CREATE INDEX IF NOT EXISTS idx_cards_race_upper ON cards(UPPER(race));
 CREATE INDEX IF NOT EXISTS idx_cards_cost ON cards(mana_cost);
-CREATE INDEX IF NOT EXISTS idx_cards_type ON cards(type);
-CREATE INDEX IF NOT EXISTS idx_cards_rarity ON cards(rarity);
-CREATE INDEX IF NOT EXISTS idx_cards_set ON cards(card_set);
 CREATE INDEX IF NOT EXISTS idx_cards_collectible ON cards(collectible);
-CREATE INDEX IF NOT EXISTS idx_cards_race ON cards(race);

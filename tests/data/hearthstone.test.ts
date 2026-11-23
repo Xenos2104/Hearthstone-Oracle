@@ -70,7 +70,7 @@ describe('transformCard', () => {
     expect(row.armor).toBeNull();
     expect(row.race).toBeNull();
     expect(row.spell_school).toBeNull();
-    expect(row.set_name).toBeNull();
+    expect(row.set_name).toBe('The League of Explorers');
   });
 
   it('handles spell with spellSchool', () => {

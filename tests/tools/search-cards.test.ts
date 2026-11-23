@@ -158,4 +158,29 @@ describe('search_cards', () => {
     const result = searchCards(db, { mana_cost: 4, cost_op: 'lte' });
     expect(result.cards.every(c => (c.mana_cost ?? 0) <= 4)).toBe(true);
   });
+
+  // Regression: FTS5 operator characters used to throw
+  it('does not throw on FTS5 syntax characters', () => {
+    for (const query of ["C'Thun", '*', '(', 'NEAR', 'Reno -Jackson', '"quoted"']) {
+      expect(() => searchCards(db, { query })).not.toThrow();
+    }
+  });
+
+  it('matches multi-word queries with AND semantics', () => {
+    const result = searchCards(db, { query: 'deal damage' });
+    expect(result.cards.map(c => c.name)).toContain('Fireball');
+  });
+
+  // Regression: hero skins / Battlegrounds cards share the cards table
+  it('excludes non-constructed sets unless explicitly requested', () => {
+    db.prepare(`
+      INSERT INTO cards (id, name, mana_cost, type, player_class, collectible, card_set)
+      VALUES ('500001', 'Skin Only Card', 3, 'MINION', 'MAGE', 1, 'HERO_SKINS')
+    `).run();
+
+    expect(searchCards(db, { query: 'Skin' }).cards).toHaveLength(0);
+    expect(
+      searchCards(db, { query: 'Skin', include_nonstandard: true }).cards,
+    ).toHaveLength(1);
+  });
 });

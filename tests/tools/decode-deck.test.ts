@@ -107,8 +107,8 @@ describe('decode_deck', () => {
     }
   });
 
-  // Unknown card placeholder explains the likely cause and remediation
-  it('returns a richer placeholder message for unknown dbfIds', () => {
+  // Unknown dbfIds are reported separately instead of bloating the card list
+  it('reports unresolved dbfIds separately from the card list', () => {
     const code = encode({
       cards: [
         [999999, 1], // Unknown — simulates a dbfId from a future expansion
@@ -120,15 +120,31 @@ describe('decode_deck', () => {
     expect(result.success).toBe(true);
     if (result.success) {
       const unknown = result.cards[0]!.card;
-      // Must include the dbfId so the user can look it up
-      expect(unknown.name).toContain('999999');
-      // Must explain the likely cause (recent expansion)
-      expect(unknown.name.toLowerCase()).toContain('recent expansion');
-      // Must point at the remediation
-      expect(unknown.name.toLowerCase()).toContain('refresh data');
+      // Short placeholder, id still visible
+      expect(unknown.name).toBe('[Unknown card #999999]');
+      expect(result.unresolved_dbf_ids).toEqual([999999]);
       // Other fields stay null (we don't have the data)
       expect(unknown.mana_cost).toBeNull();
       expect(unknown.type).toBeNull();
+
+      // The explanatory text lives in the formatter, once, at the end
+      const text = formatDecodeDeck(result);
+      expect(text).toContain('999999');
+      expect(text).toContain('HEARTHSTONE_ORACLE_FORCE_REFRESH');
+    }
+  });
+
+  // Classic (deckstrings format 3) must not be reported as Standard
+  it('labels Classic format as Classic', () => {
+    const code = encode({
+      cards: [[315, 2]],
+      heroes: [274],
+      format: 3, // Classic
+    });
+    const result = decodeDeck(db, { deck_code: code });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.format).toBe('Classic');
     }
   });
 

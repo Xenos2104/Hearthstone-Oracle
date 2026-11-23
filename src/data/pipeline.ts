@@ -1,8 +1,7 @@
 import type Database from 'better-sqlite3';
 import fs from 'node:fs';
 import path from 'node:path';
-import os from 'node:os';
-import { hasExistingData } from './db.js';
+import { hasExistingData, resolveDataDir } from './db.js';
 import { fetchCards, ingestCards } from './hearthstone.js';
 
 // --- Types ---
@@ -19,7 +18,6 @@ export interface PipelineOptions {
 
 // --- Constants ---
 
-const DEFAULT_DATA_DIR = path.join(os.homedir(), '.hearthstone-oracle');
 const LAST_UPDATE_FILENAME = 'last_update.json';
 
 /**
@@ -53,7 +51,7 @@ export function isStale(
  * Returns an empty object if the file does not exist.
  */
 export function loadLastUpdate(dataDir?: string): LastUpdate {
-  const dir = dataDir ?? DEFAULT_DATA_DIR;
+  const dir = resolveDataDir(dataDir);
   const filePath = path.join(dir, LAST_UPDATE_FILENAME);
 
   try {
@@ -71,7 +69,7 @@ export function saveLastUpdate(
   lastUpdate: LastUpdate,
   dataDir?: string
 ): void {
-  const dir = dataDir ?? DEFAULT_DATA_DIR;
+  const dir = resolveDataDir(dataDir);
 
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
@@ -106,7 +104,7 @@ export async function runPipeline(
   db: Database.Database,
   options?: PipelineOptions
 ): Promise<number> {
-  const dataDir = options?.dataDir ?? DEFAULT_DATA_DIR;
+  const dataDir = resolveDataDir(options?.dataDir);
   const force = options?.force ?? false;
   const fetchFn = options?.fetchFn;
 

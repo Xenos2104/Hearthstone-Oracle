@@ -1,7 +1,12 @@
 import type Database from 'better-sqlite3';
 import { z } from 'zod';
 import type { CardRow } from '../data/db.js';
-import type { CardSummary, SearchCardsResult } from '../format.js';
+import {
+  escapeLike,
+  excludeNonConstructedSets,
+  toCardSummary,
+} from '../data/cards.js';
+import type { SearchCardsResult } from '../format.js';
 
 // --- Input Schema ---
 
@@ -48,6 +53,13 @@ export const SearchCardsInput = z.object({
     .optional()
     .default(true)
     .describe('Only return collectible cards (default: true)'),
+  include_nonstandard: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe(
+      'Include Battlegrounds/Mercenaries/Tavern Brawl/hero skins (default: false)',
+    ),
   limit: z
     .number()
     .min(1)
@@ -69,22 +81,26 @@ const COST_OPS: Record<string, string> = {
   gte: '>=',
 };
 
-// --- Helper: parse keywords JSON ---
+/**
+ * Turn free text into a safe FTS5 query.
+ *
+ * FTS5 `MATCH` has its own grammar, so raw input like `C'Thun`, `*` or
+ * `NEAR` either throws or silently changes meaning. Each whitespace-separated
+ * token is quoted (doubling embedded quotes) and the tokens are ANDed, which
+ * keeps the intuitive "all words must appear" behaviour.
+ */
+export function toFtsQuery(raw: string): string | null {
+  const tokens = raw
+    .trim()
+    .split(/\s+/)
+    .map((token) => token.replace(/^[+-]+/, ''))
+    .filter((token) => token.length > 0);
 
-function parseKeywords(raw: string | null): string[] {
-  if (!raw) return [];
-  try {
-    return JSON.parse(raw) as string[];
-  } catch {
-    return [];
-  }
-}
+  if (tokens.length === 0) return null;
 
-// --- Helper: first line preview ---
-
-function textPreview(text: string | null): string | null {
-  if (!text) return null;
-  return text.split('\n')[0];
+  return tokens
+    .map((token) => `"${token.replace(/"/g, '""')}"`)
+    .join(' AND ');
 }
 
 // --- Handler ---
@@ -93,86 +109,75 @@ export function searchCards(
   db: Database.Database,
   input: SearchCardsInputType,
 ): SearchCardsResult {
-  const params: unknown[] = [];
   const conditions: string[] = [];
-  const useFts = !!input.query;
+  const params: unknown[] = [];
 
-  // Collectible filter
   if (input.collectible_only !== false) {
     conditions.push('c.collectible = 1');
   }
 
-  // Class filter
+  if (!input.include_nonstandard) {
+    conditions.push(excludeNonConstructedSets('c'));
+  }
+
   if (input.player_class) {
     conditions.push('UPPER(c.player_class) = UPPER(?)');
     params.push(input.player_class);
   }
 
-  // Cost filter
   if (input.mana_cost != null) {
     const op = COST_OPS[input.cost_op ?? 'eq'] ?? '=';
     conditions.push(`c.mana_cost ${op} ?`);
     params.push(input.mana_cost);
   }
 
-  // Type filter
   if (input.type) {
     conditions.push('UPPER(c.type) = UPPER(?)');
     params.push(input.type);
   }
 
-  // Rarity filter
   if (input.rarity) {
     conditions.push('UPPER(c.rarity) = UPPER(?)');
     params.push(input.rarity);
   }
 
-  // Set filter
   if (input.card_set) {
     conditions.push('UPPER(c.card_set) = UPPER(?)');
     params.push(input.card_set);
   }
 
-  // Keyword filter (search in JSON string)
   if (input.keyword) {
-    conditions.push("c.keywords LIKE '%' || ? || '%'");
-    params.push(input.keyword);
+    conditions.push("c.keywords LIKE ? ESCAPE '\\'");
+    params.push(`%${escapeLike(input.keyword)}%`);
   }
 
-  // Race filter
   if (input.race) {
     conditions.push('UPPER(c.race) = UPPER(?)');
     params.push(input.race);
   }
 
   const limit = input.limit ?? 25;
+  const ftsQuery = input.query ? toFtsQuery(input.query) : null;
 
   let sql: string;
   const allParams: unknown[] = [];
 
-  if (useFts) {
-    // FTS5 query
-    allParams.push(input.query);
-    allParams.push(...params);
-    allParams.push(limit);
-
+  if (ftsQuery) {
+    allParams.push(ftsQuery, ...params, limit);
     const whereClause =
-      conditions.length > 0 ? ' AND ' + conditions.join(' AND ') : '';
+      conditions.length > 0 ? ` AND ${conditions.join(' AND ')}` : '';
 
     sql = `
-      SELECT c.* FROM cards_fts fts
-      JOIN cards c ON c.rowid = fts.rowid
+      SELECT c.* FROM cards_fts
+      JOIN cards c ON c.rowid = cards_fts.rowid
       WHERE cards_fts MATCH ?${whereClause}
-      ORDER BY fts.rank
+      ORDER BY cards_fts.rank
       LIMIT ?
     `;
   } else {
-    // Regular query
-    allParams.push(...params);
-    allParams.push(limit);
-
+    allParams.push(...params, limit);
     const whereClause =
-      conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
+      conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
     sql = `
       SELECT c.* FROM cards c
@@ -184,17 +189,7 @@ export function searchCards(
 
   const rows = db.prepare(sql).all(...allParams) as CardRow[];
 
-  const cards: CardSummary[] = rows.map((row) => ({
-    name: row.name,
-    mana_cost: row.mana_cost,
-    type: row.type,
-    player_class: row.player_class,
-    rarity: row.rarity,
-    text: textPreview(row.text),
-    attack: row.attack,
-    health: row.health,
-    keywords: parseKeywords(row.keywords),
-  }));
+  const cards = rows.map(toCardSummary);
 
   return { cards, total: cards.length };
 }

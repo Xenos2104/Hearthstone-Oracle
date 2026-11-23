@@ -26,7 +26,6 @@ describe('Database Schema', () => {
       'cards',
       'cards_fts',
       'keywords',
-      'sets',
       'archetypes',
       'class_identities',
       'matchup_framework',

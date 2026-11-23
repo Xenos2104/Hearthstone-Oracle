@@ -5,5 +5,3 @@ dist/
 .env.*
 .DS_Store
 *.tsbuildinfo
-.mcpregistry_*
-.mcp-qa/

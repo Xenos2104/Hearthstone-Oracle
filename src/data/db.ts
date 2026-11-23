@@ -36,6 +36,19 @@ const DEFAULT_DATA_DIR = path.join(os.homedir(), '.hearthstone-oracle');
 const DB_FILENAME = 'cards.sqlite';
 const BATCH_SIZE = 500;
 
+/**
+ * Data directory resolution order:
+ *   1. explicit argument
+ *   2. HEARTHSTONE_ORACLE_DATA_DIR environment variable
+ *   3. ~/.hearthstone-oracle
+ *
+ * The env var lets several checkouts (or a local build next to an npx install)
+ * keep separate databases instead of fighting over one file.
+ */
+export function resolveDataDir(override?: string): string {
+  return override ?? process.env.HEARTHSTONE_ORACLE_DATA_DIR ?? DEFAULT_DATA_DIR;
+}
+
 // --- Schema loading ---
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -56,7 +69,8 @@ function ensureDataDir(dataDir: string): void {
 /**
  * Opens (or creates) a SQLite database and initializes the schema.
  *
- * @param dataDir - Custom data directory. Defaults to ~/.hearthstone-oracle/.
+ * @param dataDir - Custom data directory. Falls back to
+ *                  HEARTHSTONE_ORACLE_DATA_DIR, then ~/.hearthstone-oracle/.
  *                  Pass ':memory:' for an in-memory database (tests).
  * @returns A better-sqlite3 Database instance with schema applied.
  */
@@ -66,7 +80,7 @@ export function getDatabase(dataDir?: string): Database.Database {
   if (dataDir === ':memory:') {
     db = new Database(':memory:');
   } else {
-    const dir = dataDir ?? DEFAULT_DATA_DIR;
+    const dir = resolveDataDir(dataDir);
     ensureDataDir(dir);
     const dbPath = path.join(dir, DB_FILENAME);
     db = new Database(dbPath);
@@ -74,6 +88,7 @@ export function getDatabase(dataDir?: string): Database.Database {
 
   // Performance pragmas
   db.pragma('journal_mode = WAL');
+  db.pragma('busy_timeout = 5000');
   db.pragma('foreign_keys = ON');
 
   // Initialize schema (idempotent via IF NOT EXISTS)

@@ -5,6 +5,7 @@ import type { GetClassIdentityResult } from './tools/get-class-identity.js';
 import type { GetMatchupResult } from './tools/get-matchup.js';
 import type { ExplainConceptResult } from './tools/explain-concept.js';
 import type { AnalyzeDeckResult } from './tools/analyze-deck.js';
+import { MANA_CURVE_BUCKETS } from './data/cards.js';
 
 // --- Types ---
 
@@ -53,6 +54,41 @@ export type GetCardResult =
   | { found: true; card: CardDetail }
   | { found: false; message: string; suggestions?: string[] };
 
+// --- Shared helpers ---
+
+const MANA_CURVE_WIDTH = 20;
+
+/**
+ * Render a mana curve as fixed-width bars (max 20 columns), normalised to the
+ * tallest bucket. Raw counts used to be repeated verbatim, which produced
+ * 30-character bars for a deck with ten 2-drops.
+ */
+export function formatManaCurve(curve: Record<string, number>): string[] {
+  const peak = Math.max(
+    1,
+    ...MANA_CURVE_BUCKETS.map((bucket) => curve[bucket] ?? 0),
+  );
+
+  const lines: string[] = [];
+  for (const bucket of MANA_CURVE_BUCKETS) {
+    const count = curve[bucket] ?? 0;
+    if (count === 0) continue;
+    const width = Math.max(1, Math.round((count / peak) * MANA_CURVE_WIDTH));
+    lines.push(`${bucket}: ${'█'.repeat(width)} ${count}`);
+  }
+  return lines;
+}
+
+/** "2x **Fireball** (4 mana) — SPELL" */
+function formatDeckCardLine(card: CardSummary, count: number): string {
+  return `${count}x **${card.name}** (${card.mana_cost ?? '?'} mana) — ${card.type ?? 'Unknown'}`;
+}
+
+function formatUnresolvedWarning(unresolved: number[]): string | null {
+  if (unresolved.length === 0) return null;
+  return `⚠ ${unresolved.length} card(s) not in the local card data (dbfId: ${unresolved.join(', ')}). Set HEARTHSTONE_ORACLE_FORCE_REFRESH=1 to refresh.`;
+}
+
 // --- Formatters ---
 
 export function formatSearchCards(result: SearchCardsResult): string {
@@ -62,13 +98,17 @@ export function formatSearchCards(result: SearchCardsResult): string {
 
   const lines: string[] = [`Found ${result.total} card(s):\n`];
   for (const card of result.cards) {
+    const stats =
+      card.attack != null && card.health != null
+        ? ` ${card.attack}/${card.health}`
+        : '';
+    const rarity = card.rarity ? `${card.rarity} ` : '';
+
     lines.push(
-      `- **${card.name}** (${card.mana_cost ?? '?'} mana) — ${card.type ?? 'Unknown'} [${card.player_class ?? 'NEUTRAL'}]`
+      `- **${card.name}** (${card.mana_cost ?? '?'} mana) — ${rarity}${card.type ?? 'Unknown'} [${card.player_class ?? 'NEUTRAL'}]${stats}`,
     );
     if (card.text) {
-      // Show first line only as preview
-      const preview = card.text.split('\n')[0];
-      lines.push(`  ${preview}`);
+      lines.push(`  ${card.text}`);
     }
   }
   return lines.join('\n');
@@ -79,7 +119,7 @@ export function formatGetCard(result: GetCardResult): string {
     let msg = result.message;
     if (result.suggestions && result.suggestions.length > 0) {
       msg += '\n\nDid you mean:\n';
-      msg += result.suggestions.map(s => `- ${s}`).join('\n');
+      msg += result.suggestions.map((s) => `- ${s}`).join('\n');
     }
     return msg;
   }
@@ -87,10 +127,8 @@ export function formatGetCard(result: GetCardResult): string {
   const card = result.card;
   const lines: string[] = [];
 
-  // Header
   lines.push(`# ${card.name} {${card.mana_cost ?? '?'} mana}`);
 
-  // Type line
   const typeParts: string[] = [];
   if (card.rarity) typeParts.push(card.rarity);
   if (card.type) typeParts.push(card.type);
@@ -98,22 +136,24 @@ export function formatGetCard(result: GetCardResult): string {
   if (card.player_class) typeParts.push(`[${card.player_class}]`);
   lines.push(typeParts.join(' '));
 
-  // Set
   if (card.card_set || card.set_name) {
-    lines.push(`Set: ${card.set_name ?? card.card_set}`);
+    const set = card.set_name ?? card.card_set;
+    lines.push(`Set: ${set}${card.card_set && set !== card.card_set ? ` (${card.card_set})` : ''}`);
   }
 
-  // Text
   if (card.text) {
     lines.push('');
     lines.push(card.text);
   }
 
-  // Stats
   if (card.type === 'MINION' && card.attack != null && card.health != null) {
     lines.push('');
     lines.push(`${card.attack}/${card.health}`);
-  } else if (card.type === 'WEAPON' && card.attack != null && card.durability != null) {
+  } else if (
+    card.type === 'WEAPON' &&
+    card.attack != null &&
+    card.durability != null
+  ) {
     lines.push('');
     lines.push(`${card.attack}/${card.durability}`);
   } else if (card.type === 'HERO' && card.armor != null) {
@@ -121,17 +161,14 @@ export function formatGetCard(result: GetCardResult): string {
     lines.push(`Armor: ${card.armor}`);
   }
 
-  // Keywords
   if (card.keywords.length > 0) {
     lines.push(`Keywords: ${card.keywords.join(', ')}`);
   }
 
-  // Spell school
   if (card.spell_school) {
     lines.push(`Spell School: ${card.spell_school}`);
   }
 
-  // Flavor
   if (card.flavor) {
     lines.push('');
     lines.push(`*${card.flavor}*`);
@@ -185,30 +222,25 @@ export function formatDecodeDeck(result: DecodeDeckResult): string {
   lines.push(`Total cards: ${result.total_cards}`);
   lines.push('');
 
-  // Cards list
   lines.push('## Cards');
   for (const { card, count } of result.cards) {
-    lines.push(
-      `- ${count}x **${card.name}** (${card.mana_cost ?? '?'} mana) — ${card.type ?? 'Unknown'}`,
-    );
+    lines.push(`- ${formatDeckCardLine(card, count)}`);
   }
 
-  // Mana Curve
   lines.push('');
   lines.push('## Mana Curve');
-  const buckets = ['0', '1', '2', '3', '4', '5', '6', '7+'];
-  for (const bucket of buckets) {
-    const count = result.mana_curve[bucket] ?? 0;
-    if (count > 0) {
-      lines.push(`${bucket}: ${'#'.repeat(count)} (${count})`);
-    }
-  }
+  lines.push(...formatManaCurve(result.mana_curve));
 
-  // Type Distribution
   lines.push('');
   lines.push('## Type Distribution');
   for (const [type, count] of Object.entries(result.type_distribution)) {
     lines.push(`- ${type}: ${count}`);
+  }
+
+  const warning = formatUnresolvedWarning(result.unresolved_dbf_ids);
+  if (warning) {
+    lines.push('');
+    lines.push(warning);
   }
 
   return lines.join('\n');
@@ -282,7 +314,12 @@ export function formatGetClassIdentity(result: GetClassIdentityResult): string {
     return lines.join('\n');
   }
 
-  const id = (result as { found: true; identity: import('./tools/get-class-identity.js').ClassIdentityInfo }).identity;
+  const id = (
+    result as {
+      found: true;
+      identity: import('./tools/get-class-identity.js').ClassIdentityInfo;
+    }
+  ).identity;
   const lines: string[] = [];
   lines.push(`# ${id.class}`);
   lines.push('');
@@ -379,19 +416,21 @@ export function formatAnalyzeDeck(result: AnalyzeDeckResult): string {
 
   const lines: string[] = [];
 
-  // Header
   lines.push('# Deck Analysis');
   lines.push('');
-  lines.push(`**Class:** ${result.deck.hero_class} | **Format:** ${result.deck.format} | **Cards:** ${result.deck.total_cards}`);
+  lines.push(
+    `**Class:** ${result.deck.hero_class} | **Format:** ${result.deck.format} | **Cards:** ${result.deck.total_cards}`,
+  );
   lines.push('');
 
-  // Archetype classification
   const confidencePct = Math.round(result.classification.confidence * 100);
-  lines.push(`## Archetype: ${result.classification.archetype.charAt(0).toUpperCase() + result.classification.archetype.slice(1)} (${confidencePct}% confidence)`);
+  const archetypeLabel =
+    result.classification.archetype.charAt(0).toUpperCase() +
+    result.classification.archetype.slice(1);
+  lines.push(`## Archetype: ${archetypeLabel} (${confidencePct}% confidence)`);
   lines.push(result.classification.reasoning);
   lines.push('');
 
-  // Gameplan (from archetype_info)
   if (result.archetype_info) {
     lines.push('## Gameplan');
     lines.push(result.archetype_info.gameplan);
@@ -410,26 +449,30 @@ export function formatAnalyzeDeck(result: AnalyzeDeckResult): string {
     lines.push('');
   }
 
-  // Mana Curve
-  lines.push('## Mana Curve');
-  const buckets = ['0', '1', '2', '3', '4', '5', '6', '7+'];
-  for (const bucket of buckets) {
-    const count = result.deck.mana_curve[bucket] ?? 0;
-    if (count > 0) {
-      const bar = '\u2588'.repeat(count);
-      lines.push(`${bucket}: ${bar} ${count}`);
-    }
+  lines.push('## Cards');
+  for (const card of result.deck.cards) {
+    lines.push(
+      `- ${card.count}x **${card.name}** (${card.mana_cost ?? '?'} mana)`,
+    );
   }
   lines.push('');
 
-  // Matchup Expectations
+  lines.push('## Mana Curve');
+  lines.push(...formatManaCurve(result.deck.mana_curve));
+  lines.push('');
+
   if (result.matchups && result.matchups.length > 0) {
     lines.push('## Matchup Expectations');
     for (const m of result.matchups) {
-      lines.push(`- vs ${m.vs_archetype}: ${m.favoured} \u2014 ${m.key_tension}`);
+      lines.push(`- vs ${m.vs_archetype}: ${m.favoured} — ${m.key_tension}`);
     }
     lines.push('');
   }
 
-  return lines.join('\n');
+  const warning = formatUnresolvedWarning(result.unresolved_dbf_ids);
+  if (warning) {
+    lines.push(warning);
+  }
+
+  return lines.join('\n').trimEnd();
 }

@@ -2,18 +2,15 @@
 
 MCP server for Hearthstone card data, strategy coaching, and deck analysis.
 
-## Stack Profiles
-
-- MCP stack profile: `../../stacks/mcp/`
-- TypeScript stack profile: `../../stacks/typescript/`
-
-Read both stack profiles before writing any code.
+This is a **local-only** checkout: it is not published to npm, and the registry /
+directory metadata used for distribution has been removed. Build and run it from
+this directory (`npm install && npm run build && npm start`).
 
 ## Architecture
 
 - **Runtime data**: Downloads HearthstoneJSON card data on first run, stores in `~/.hearthstone-oracle/`
-- **Does NOT bundle card data** in the npm package — data is fetched at runtime
-- **Updates**: Checks HearthstoneJSON for newer builds, downloads only if newer
+- **Does NOT bundle card data** — data is fetched at runtime, so the first start needs network
+- **Updates**: Snapshot TTL of 7 days; a stale snapshot is refreshed, a fresh one is reused
 - **Storage**: SQLite via `better-sqlite3` with FTS5 full-text search
 - **Two layers**: Layer 1 (card data from HearthstoneJSON) + Layer 2 (curated strategy knowledge)
 
@@ -23,13 +20,13 @@ HearthstoneJSON (hearthstonejson.com) — HearthSim community project. Unrestric
 
 ## Engineering
 
-Uses Superpowers for engineering execution. Follow TDD workflow: write tests first, then implement.
+TDD workflow: write tests first, then implement.
 
 ## Important
 
 - All logging via `console.error()` — never `console.log()` (corrupts stdio JSON-RPC)
 - In-memory database for tests: `getDatabase(':memory:')`
-- Run `/mcp-qa` before every commit — no exceptions
+- `npm test` (Vitest) and `npm run build` must both pass before committing
 
 ## HearthstoneJSON dbfId drift
 
